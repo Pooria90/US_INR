@@ -60,6 +60,7 @@ class EarlyStopping():
         self.patience  = patience
         self.attribute = attribute
         self.b_model   = nn.Module()                                # best model that is found during trainin
+        self.b_opt     = None                                       # best optimizer setup
         self.atr_value = float('inf') if attribute == 'loss' else 0 # valid loss/acc of best model
         self.counter   = 0                                          # if counter==patience then stop training
         pass
@@ -69,7 +70,8 @@ def train (
     model, train_ds, valid_ds,
     batch_size, epochs, learning_rate,
     loss_func = F.nll_loss, period = 1,
-    er_stop = EarlyStopping(state=False)
+    er_stop = EarlyStopping(state=False),
+    save_path = None
     ):
     
     '''
@@ -134,6 +136,7 @@ def train (
                 if history['valid_loss'][-1] < er_stop.atr_value:
                     er_stop.atr_value = history['valid_loss'][-1]
                     er_stop.b_model   = deepcopy(model)
+                    er_stop.b_opt     = deepcopy(opt)
                     er_stop.counter   = 0 
                 else:
                     er_stop.counter  += 1
@@ -142,12 +145,24 @@ def train (
                 if history['valid_acc'][-1] > er_stop.atr_value:
                     er_stop.atr_value = history['valid_acc'][-1]
                     er_stop.b_model   = deepcopy(model)
+                    er_stop.b_opt     = deepcopy(opt)
                     er_stop.counter   = 0
                 else:
                     er_stop.counter  += 1
             
             if er_stop.counter == er_stop.patience:
                 model = deepcopy(er_stop.b_model)
+                opt   = deepcopy(er_stop.b_opt)
                 break
-                
+    
+    if save_path != None:
+        model_path = save_path + '/model.pt'
+        torch.save({
+            'epoch': ep,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': opt.state_dict(),
+            'history': history
+        }, model_path)
+        print ('Checkpoint saved successfully!')
+    
     return history
