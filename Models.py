@@ -123,7 +123,7 @@ class SonoNet(nn.Module):
         self.average = Lambda(myMean)
         
         # Classification
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
         
     def forward(self, xb):
         xb = self.conv1_1(xb)
