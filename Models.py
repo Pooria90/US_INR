@@ -48,6 +48,7 @@ class SonoNet(nn.Module):
         self.ch5 = ch5
         self.ada = ada
         self.K = num_labels
+        self.name = 'SonoNet' + str(self.ch1)
         
         # 1st Layer
         self.conv1_1 = nn.Conv2d(in_channels=1, out_channels=self.ch1, kernel_size=3)
