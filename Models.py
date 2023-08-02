@@ -294,6 +294,89 @@ class ModulatedSineLayer(nn.Module):
         return torch.sin(self.omega_0 * xb)
     
 
+class ModulatedSiren(nn.Module):
+    def __init__(
+        self,
+        in_features,
+        hidden_features,
+        num_modulations,
+        out_features,
+        last_linear = False,
+        first_omega_0 = 50,
+        hidden_omega_0 = 50,
+        device = 'cpu'
+    ):
+
+        super().__init__()
+
+        self.in_features = in_features
+        self.hidden_features = hidden_features # list of hidden features
+        self.num_modulations = num_modulations # number of modulations (None or some int)
+        self.out_features = out_features
+        self.last_linear = last_linear
+        self.first_omega_0 = first_omega_0
+        self.hidden_omega_0 = hidden_omega_0
+        self.device = device
+
+        self.net = list()
+
+        self.net.append(
+            ModulatedSineLayer(
+                self.in_features,
+                self.hidden_features[0],
+                num_modulations=self.num_modulations,
+                is_first=True,
+                omega_0=self.first_omega_0,
+                device = self.device
+            )
+        )
+
+        for i in range(len(self.hidden_features)-1):
+            self.net.append(
+                ModulatedSineLayer(
+                    self.hidden_features[i],
+                    self.hidden_features[i+1],
+                    num_modulations=self.num_modulations,
+                    is_first=False,
+                    omega_0=self.hidden_omega_0,
+                    device = self.device
+                )
+            )
+
+        if self.last_linear:
+            final_layer = nn.Linear(hidden_features[-1], out_features).to(self.device)
+            with torch.no_grad():
+                final_layer.weight.uniform_(-np.sqrt(6 / self.hidden_features[-1]) / self.hidden_omega_0,
+                                              np.sqrt(6 / self.hidden_features[-1]) / self.hidden_omega_0)
+            self.net.append(final_layer)
+        else:
+            self.net.append(
+                ModulatedSineLayer(
+                    self.hidden_features[-1],
+                    out_features,
+                    num_modulations=self.num_modulations,
+                    omega_0=self.hidden_omega_0,
+                    device = self.device
+                )
+            )
+
+        self.net = nn.Sequential(*self.net).to(device)
+        self.modulation = torch.zeros(size=[self.num_modulations], requires_grad=True).to(self.device)
+
+    def reset_modulation(self):
+        self.modulation = self.modulation.detach() * 0
+        self.modulation = self.modulation.to(self.device)
+        self.modulation.requires_grad = True
+
+    def forward(self, xb):
+        for layer in self.net[:-1]:
+            xb = layer(xb, modulation = self.modulation)
+        if self.last_linear:
+            xb = self.net[-1](xb)
+        else:
+            xb = self.net[-1](xb, modulation = self.modulation)
+        return xb
+
 if __name__ == "__main__":
     model = SonoNet()
     summary(model, (1,224,288), device='cpu')
