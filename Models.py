@@ -248,7 +248,51 @@ class Siren(nn.Module):
         xb = xb.clone().detach().requires_grad_(True) # allows to take derivative w.r.t. input
         yb = self.net(xb)
         return yb, xb
+    
 
+# Latent Modulated Siren, from Dupont et al. https://arxiv.org/abs/2201.12204
+class ModulatedSineLayer(nn.Module):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        num_modulations = None,
+        bias=True,
+        is_first=False,
+        omega_0=30,
+        device = 'cpu'
+    ):
+
+        super().__init__()
+
+        self.omega_0 = omega_0
+        self.is_first = is_first
+        self.in_features = in_features
+        self.out_features = out_features
+
+        self.linear = nn.Linear(self.in_features, self.out_features, bias = bias).to(device)
+        self.init_weights()
+
+        self.num_modulations = num_modulations
+        if self.num_modulations != None:
+            assert type(num_modulations) == int, 'TypeError: num_modulations is either None or int.'
+            self.modulator = nn.Linear(self.num_modulations, self.out_features).to(device)
+
+    def init_weights(self):
+        with torch.no_grad():
+            if self.is_first:
+                self.linear.weight.uniform_(-1/self.in_features, 1/self.in_features)
+            else:
+                self.linear.weight.uniform_(-np.sqrt(6/self.in_features)/self.omega_0, np.sqrt(6/self.in_features)/self.omega_0)
+
+    def forward(self, xb, modulation=None):
+        xb = self.linear(xb)
+
+        if modulation != None and self.num_modulations != None:
+            xb += self.modulator(modulation)
+
+        return torch.sin(self.omega_0 * xb)
+    
 
 if __name__ == "__main__":
     model = SonoNet()
