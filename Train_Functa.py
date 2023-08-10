@@ -208,6 +208,6 @@ if __name__ == '__main__':
     summary(model, (2,), device = device)
     
     # === Model training
-    model = train_functa(model, train_ds, valid_ds, 10, 8, 2, 5e-6, 0.001, ep_start = 2, log_period=2)
+    logger, model = train_functa(model, train_ds, valid_ds, 10, 8, 2, 5e-6, 0.001, ep_start = 2, log_period=2)
 
 
