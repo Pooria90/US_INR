@@ -22,7 +22,8 @@ from torchvision import datasets
 from torchvision.transforms import Resize, Compose, ToTensor, Normalize
 
 from Models import ModulatedSineLayer, ModulatedSiren
-from DataPrep import get_mgrid, INR_Dataset
+from DataUtils import get_mgrid, INR_Dataset
+from Logging import Logger, present_time
 
 # Training code
 def train_functa(
@@ -34,34 +35,45 @@ def train_functa(
         N_inner,
         lr_outer,
         lr_inner,
+        meta_optimizer = None,
+        ep_start = None,
+        log_period = 1,
+        verbose = True
     ):
 
     model.train()
 
-    meta_optimizer = torch.optim.Adam(lr=lr_outer, params=model.parameters())
-    # === Maybe add a scheduler === #
+    if meta_optimizer == None:
+        meta_optimizer = torch.optim.Adam(lr=lr_outer, params=model.parameters())
+        # === Maybe add a scheduler === #
 
-    # === initialize some logger in here === #
+    # logs intialization
+    print ('===> Training started <===')
+    #print (f'Date and time: {present_time()}')
+    logger = Logger(log_period=log_period, verbose=verbose)
 
     meta_grad_init = [0 for _ in range(len(model.state_dict()))] # starting point for meta-gradients
 
-    # === Still don't know how to make train_ds and valid_ds === #
     train_dl = DataLoader(train_ds, batch_size=bs, shuffle=True) # === Check CAVIA for pin_memory
     valid_dl = DataLoader(valid_ds, batch_size=bs, shuffle=True) # === Check CAVIA for pin_memory
 
-    for iter in range(1, num_iter + 1):
-        # === Some logs === #
+    if ep_start == None:
+        ep_start = 1
 
+    for iter in range(ep_start, num_iter + ep_start):
         for counter, (xb,yb,imgs) in enumerate(train_dl):
             if xb.shape[0] != bs:
                 continue
 
             meta_grad = deepcopy(meta_grad_init)
 
-            # === Some logs === #
+            logger.prepare_inner_loop(iter)
 
             for j in range(bs):
                 model.reset_modulation()
+
+                logger.log_pre_update(iter, xb[j], yb[j], model)
+
                 # --- inner update
                 for i in range(N_inner):
                     # prediction
@@ -86,14 +98,19 @@ def train_functa(
                 for i in range(len(grad_test)):
                     meta_grad[i] += grad_test[i].detach()
 
-                print(f'Iter: {iter} --- batch: {counter+1} --- loss test for meta-training: {loss_test}')
-                # === Some logs === #
+                # print(f'loss test for meta-training: {loss_test}')
+                logger.log_post_update(iter, xb[j], yb[j], model)
 
             model.reset_modulation()
 
-            # === Some logs to summarize inner loop === #
+            logger.summarise_inner_loop(iter, mode='train')
 
-            # === Evaluation and saving the checkpoint === #
+            if iter % log_period == 0:
+                evaluate(iter, model, logger, valid_dl, N_inner, lr_inner)
+                logger.update_best_model(iter, logger, model, meta_optimizer)
+            logger.print_logs(iter, grad_train, meta_grad)
+            # === save checkpoints and stats ===
+            # === iter counter is the number of meta-updates in the CAVIA code! ===
 
             # --- Meta-update
             meta_optimizer.zero_grad()
@@ -106,8 +123,47 @@ def train_functa(
             meta_optimizer.step()
 
     model.reset_modulation()
-    return model # and probably log data
+    return logger, model
 
+# Evaluation function
+def evaluate(
+        iter,
+        model,
+        logger,
+        dataloader,
+        N_inner,
+        lr_inner
+    ):
+    logger.prepare_inner_loop(iter, mode='valid')
+
+    for counter, (xb,yb,_) in enumerate(dataloader):
+        for j in range(xb.shape[0]):
+
+            model.reset_modulation()
+
+            # --- inner update
+            logger.log_pre_update(iter, xb[j], yb[j], model, mode='valid')
+
+            for _ in range(N_inner):
+                # prediction
+                pred_train = model(xb[j])
+
+                # loss
+                loss_train = F.mse_loss(pred_train, yb[j])
+
+                # grad, There are some note in the CAVIA's supplemetary matrial
+                grad_train = torch.autograd.grad(loss_train, model.modulation, create_graph=True)[0]
+
+                # update modulations
+                model.modulation = model.modulation - lr_inner * grad_train
+
+            logger.log_post_update(iter, xb[j], yb[j], model, mode='valid')
+
+    # reset context parameters
+    model.reset_modulation()
+
+    # this will take the mean over the batches
+    logger.summarise_inner_loop(iter, mode='valid')
 
 # Running the main process
 if __name__ == '__main__':
@@ -134,7 +190,7 @@ if __name__ == '__main__':
     ds = INR_Dataset(brain_data, './Images/', 144, device=device)
 
     generator = torch.Generator().manual_seed(seed)
-    train_ds, valid_ds = random_split(ds, [0.05, 0.95], generator=generator)
+    train_ds, valid_ds, _ = random_split(ds, [0.02, 0.01, 0.97], generator=generator)
     print ('\nTrain size: ',train_ds.__len__(), '--- Valid size: ', valid_ds.__len__())
 
     # === Model setup
@@ -152,6 +208,6 @@ if __name__ == '__main__':
     summary(model, (2,), device = device)
     
     # === Model training
-    model = train_functa(model, train_ds, valid_ds, 3, 8, 2, 5e-6, 0.001)
+    model = train_functa(model, train_ds, valid_ds, 10, 8, 2, 5e-6, 0.001, ep_start = 2, log_period=2)
 
 
