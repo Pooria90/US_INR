@@ -22,37 +22,7 @@ from torchvision import datasets
 from torchvision.transforms import Resize, Compose, ToTensor, Normalize
 
 from Models import ModulatedSineLayer, ModulatedSiren
-
-# This function generates a meshgrid based on the size of a square image
-def get_mgrid(sidelen, dim=2):
-    tensors = tuple(dim * [torch.linspace(0, 1, steps=sidelen)])
-    mgrid = torch.stack(torch.meshgrid(*tensors), dim=-1)
-    mgrid = mgrid.reshape(-1, dim)
-    return mgrid
-
-# Torch dataset for working with INRs
-class INR_Dataset(Dataset):
-    def __init__(self, data_table, img_dir, size = 224, device='cpu'):
-        super().__init__()
-        self.data = data_table
-        self.img_dir = img_dir
-        #self.transform = transform # in case of other transforms
-        self.size = size
-        self.device = device
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        img_path = self.img_dir + self.data.iloc[idx, 0] + '.png'
-        image = read_image(img_path, mode=ImageReadMode.GRAY).to(self.device) / 255
-
-        transform = Resize((self.size, self.size), antialias=True)
-        image = transform(image)
-
-        pixels = image.permute(1, 2, 0).view(-1, 1)
-        coords = get_mgrid(self.size, 2).to(self.device)
-        return coords, pixels, image
+from DataPrep import get_mgrid, INR_Dataset
 
 # Training code
 def train_functa(
