@@ -46,7 +46,9 @@ class Logger():
         }
 
         t = present_time()
-        self.path = 'Logs ' + t + '/'
+        if not os.path.exists('Results/'):
+            os.mkdir('Results/')
+        self.path = 'Results/Logs ' + t + '/'
         os.mkdir(self.path)
         print (f'Logger intialized at {t}!')
 
