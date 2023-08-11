@@ -146,7 +146,7 @@ class Logger():
             torch.save(self.best_optim_train, save_path + 'best_optim_train')
 
         if va_loss < self.best_valid_loss:
-            self.best_valid_loss = tr_loss
+            self.best_valid_loss = va_loss
             self.best_model_valid = deepcopy(model)
             self.best_optim_valid = deepcopy(optim)
             self.best_model_valid_stats = {
