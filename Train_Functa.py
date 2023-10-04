@@ -60,7 +60,8 @@ def train_functa(
     if ep_start == None:
         ep_start = 1
 
-    for iter in range(ep_start, num_iter + ep_start):
+    iter = ep_start
+    while iter <= num_iter:
         for counter, (xb,yb,imgs) in enumerate(train_dl):
             if xb.shape[0] != bs:
                 continue
@@ -110,7 +111,8 @@ def train_functa(
                 logger.update_best_model(iter, logger, model, meta_optimizer)
             logger.print_logs(iter, grad_train, meta_grad)
             # === save checkpoints and stats ===
-            # === iter counter is the number of meta-updates in the CAVIA code! ===
+
+            iter += 1
 
             # --- Meta-update
             meta_optimizer.zero_grad()
@@ -164,7 +166,7 @@ def evaluate(
 
     # this will take the mean over the batches
     logger.summarise_inner_loop(iter, mode='valid')
-
+    
 # Running the main process
 if __name__ == '__main__':
     # === Arguments here === #
@@ -187,17 +189,17 @@ if __name__ == '__main__':
 
     # === Data prepration
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    ds = INR_Dataset(brain_data, './Images/', 144, device=device)
+    ds = INR_Dataset(brain_data, './Images/', 224, device=device)
 
     generator = torch.Generator().manual_seed(seed)
-    train_ds, valid_ds, _ = random_split(ds, [0.02, 0.01, 0.97], generator=generator)
+    train_ds, valid_ds = random_split(ds, [0.8, 0.2], generator=generator)
     print ('\nTrain size: ',train_ds.__len__(), '--- Valid size: ', valid_ds.__len__())
 
     # === Model setup
     model = ModulatedSiren(
         in_features=2,
-        hidden_features=[32,32],
-        num_modulations=16,
+        hidden_features=[64]*5,
+        num_modulations=128,
         out_features=1,
         last_linear=True,
         device = device,
