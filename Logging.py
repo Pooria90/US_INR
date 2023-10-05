@@ -52,7 +52,7 @@ class Logger():
         os.mkdir(self.path)
         if self.args != None:
             with open(self.path + 'args.txt', 'w') as f:
-                f.write(self.args)
+                f.writelines(self.args)
         print (f'Logger intialized at {t}!')
 
     def prepare_inner_loop(self, iter, mode='train'):
