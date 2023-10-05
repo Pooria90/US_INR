@@ -7,7 +7,7 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import keras_ocr
+#import keras_ocr
 import cv2
 import math
 import torch
@@ -31,6 +31,7 @@ def midpoint(x1, y1, x2, y2):
     y_mid = int((y1 + y2)/2)
     return (x_mid, y_mid)
 
+'''
 def inpaint_text(img_path, pipeline):
     # read image
     img = keras_ocr.tools.read(img_path)
@@ -53,6 +54,7 @@ def inpaint_text(img_path, pipeline):
         img = cv2.inpaint(img, mask, 7, cv2.INPAINT_NS)
                  
     return(img)
+'''
 
 # This function generates a meshgrid based on the size of a square image
 def get_mgrid(sidelen, dim=2):
