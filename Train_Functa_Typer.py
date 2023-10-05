@@ -190,7 +190,29 @@ def main_process(
         log_period: int = 20
 ):
     
-    print('')
+    args_str = '''
+        seed: {},
+        path: {},
+        in_features: {},
+        hidden_features: {},
+        hidden_layers: {},
+        num_modulations: {},
+        out_features: {},
+        last_linear: {},
+        first_omega_0: {},
+        hidden_omega_0: {},
+        num_iter: {},
+        batch_size: {},
+        N_inner: {},
+        lr_outer: {},
+        lr_inner: {},
+        ep_start: {},
+        log_period: {}
+    '''.format(
+        seed,path,in_features,hidden_features,hidden_layers,num_modulations,out_features,last_linear,first_omega_0,hidden_omega_0,num_iter,batch_size,N_inner,lr_outer,lr_inner,ep_start,log_period
+    )
+    
+    print (args_str)
         
     os.chdir(path)
     print ('Current working directory: ' + os.getcwd() + '\n')
