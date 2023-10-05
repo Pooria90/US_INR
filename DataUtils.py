@@ -59,7 +59,7 @@ def inpaint_text(img_path, pipeline):
 # This function generates a meshgrid based on the size of a square image
 def get_mgrid(sidelen, dim=2):
     tensors = tuple(dim * [torch.linspace(0, 1, steps=sidelen)])
-    mgrid = torch.stack(torch.meshgrid(*tensors), dim=-1)
+    mgrid = torch.stack(torch.meshgrid(*tensors, indexing='ij'), dim=-1)
     mgrid = mgrid.reshape(-1, dim)
     return mgrid
 
