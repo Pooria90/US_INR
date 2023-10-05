@@ -50,7 +50,7 @@ def train_functa(
     # logs intialization
     print ('===> Training started <===')
     #print (f'Date and time: {present_time()}')
-    logger = Logger(log_period=log_period, verbose=verbose)
+    logger = Logger(log_period=log_period, verbose=verbose, args = 'Dummy args!')
 
     meta_grad_init = [0 for _ in range(len(model.state_dict()))] # starting point for meta-gradients
 
@@ -112,8 +112,6 @@ def train_functa(
             logger.print_logs(iter, grad_train, meta_grad)
             # === save checkpoints and stats ===
 
-            iter += 1
-
             # --- Meta-update
             meta_optimizer.zero_grad()
 
@@ -123,6 +121,10 @@ def train_functa(
                 param.grad.data.clamp_(-10, 10) # based on CAVIA
 
             meta_optimizer.step()
+
+            iter += 1
+            if iter > num_iter:
+                break
 
     model.reset_modulation()
     return logger, model
@@ -189,7 +191,7 @@ if __name__ == '__main__':
 
     # === Data prepration
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    ds = INR_Dataset(brain_data, './Images/', 224, device=device)
+    ds = INR_Dataset(brain_data, './Images/', 128, device=device)
 
     generator = torch.Generator().manual_seed(seed)
     train_ds, valid_ds = random_split(ds, [0.8, 0.2], generator=generator)
@@ -198,18 +200,18 @@ if __name__ == '__main__':
     # === Model setup
     model = ModulatedSiren(
         in_features=2,
-        hidden_features=[64]*5,
-        num_modulations=128,
+        hidden_features=[32]*2,
+        num_modulations=64,
         out_features=1,
         last_linear=True,
         device = device,
-        first_omega_0=200,
-        hidden_omega_0=200
+        first_omega_0=100,
+        hidden_omega_0=100
     ).to(device)
     
     summary(model, (2,), device = device)
     
     # === Model training
-    logger, model = train_functa(model, train_ds, valid_ds, 10, 8, 2, 5e-6, 0.001, ep_start = 2, log_period=2)
+    logger, model = train_functa(model, train_ds, valid_ds, 10, 8, 2, 5e-6, 0.001, ep_start = 1, log_period=2)
 
 

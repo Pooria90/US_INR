@@ -40,7 +40,8 @@ def train_functa(
         meta_optimizer = None,
         ep_start = None,
         log_period = 1,
-        verbose = True
+        verbose = True,
+        args = None
     ):
 
     model.train()
@@ -52,7 +53,7 @@ def train_functa(
     # logs intialization
     print ('===> Training started <===')
     #print (f'Date and time: {present_time()}')
-    logger = Logger(log_period=log_period, verbose=verbose)
+    logger = Logger(log_period=log_period, verbose=verbose, args=args)
 
     meta_grad_init = [0 for _ in range(len(model.state_dict()))] # starting point for meta-gradients
 
@@ -114,8 +115,6 @@ def train_functa(
             logger.print_logs(iter, grad_train, meta_grad)
             # === save checkpoints and stats ===
 
-            iter += 1
-
             # --- Meta-update
             meta_optimizer.zero_grad()
 
@@ -125,6 +124,10 @@ def train_functa(
                 param.grad.data.clamp_(-10, 10) # based on CAVIA
 
             meta_optimizer.step()
+            
+            iter += 1
+            if iter > num_iter:
+                break
 
     model.reset_modulation()
     return logger, model
@@ -173,14 +176,16 @@ def evaluate(
 def main_process(
         seed: int = 216,
         path: str = './Data',
+        image_len: int = 128,
+        valid_split: float = 0.2,
         in_features: int = 2,
         hidden_features: int = 128,
         hidden_layers: int = 10,
         num_modulations: int = 256,
         out_features: int = 1,
         last_linear: bool = True,
-        first_omega_0: int = 200,
-        hidden_omega_0: int = 200,
+        first_omega_0: int = 100,
+        hidden_omega_0: int = 100,
         num_iter: int = 10000,
         batch_size: int = 8,
         N_inner: int = 2,
@@ -193,6 +198,8 @@ def main_process(
     args_str = '''
         seed: {},
         path: {},
+        image_len: {},
+        valid_split: {},
         in_features: {},
         hidden_features: {},
         hidden_layers: {},
@@ -209,7 +216,10 @@ def main_process(
         ep_start: {},
         log_period: {}
     '''.format(
-        seed,path,in_features,hidden_features,hidden_layers,num_modulations,out_features,last_linear,first_omega_0,hidden_omega_0,num_iter,batch_size,N_inner,lr_outer,lr_inner,ep_start,log_period
+        seed,path,image_len,valid_split,in_features,hidden_features,
+        hidden_layers,num_modulations,out_features,last_linear,
+        first_omega_0,hidden_omega_0,num_iter,batch_size,N_inner,
+        lr_outer,lr_inner,ep_start,log_period
     )
     
     print (args_str)
@@ -228,11 +238,11 @@ def main_process(
 
     # === Data prepration
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    ds = INR_Dataset(brain_data, './Images/', 224, device=device)
+    ds = INR_Dataset(brain_data, './Images/', image_len, device=device)
 
     # === Data Split
     generator = torch.Generator().manual_seed(seed)
-    train_ds, valid_ds = random_split(ds, [0.8, 0.2], generator=generator)
+    train_ds, valid_ds = random_split(ds, [1-valid_split, valid_split], generator=generator)
     print ('\nTrain size: ',train_ds.__len__(), '--- Valid size: ', valid_ds.__len__())
 
     # === Model setup
@@ -250,7 +260,7 @@ def main_process(
     summary(model, (in_features,), device = device)
     
     # === Model training
-    logger, model = train_functa(model, train_ds, valid_ds, num_iter, batch_size, N_inner, lr_outer, lr_inner, ep_start = ep_start, log_period = log_period)
+    logger, model = train_functa(model, train_ds, valid_ds, num_iter, batch_size, N_inner, lr_outer, lr_inner, ep_start = ep_start, log_period = log_period, args = args_str)
     
     return
 
