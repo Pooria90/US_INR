@@ -37,6 +37,7 @@ def train_functa(
         N_inner,
         lr_outer,
         lr_inner,
+        lr_meta_decay = 0.9,
         meta_optimizer = None,
         ep_start = None,
         log_period = 1,
@@ -48,7 +49,7 @@ def train_functa(
 
     if meta_optimizer == None:
         meta_optimizer = torch.optim.Adam(lr=lr_outer, params=model.parameters())
-        # === Maybe add a scheduler === #
+        scheduler = torch.optim.lr_scheduler.StepLR(meta_optimiser, 5000, lr_meta_decay)
 
     # logs intialization
     print ('===> Training started <===')
@@ -68,6 +69,8 @@ def train_functa(
         for counter, (xb,yb,imgs) in enumerate(train_dl):
             if xb.shape[0] != bs:
                 continue
+
+            scheduler.step()
 
             meta_grad = deepcopy(meta_grad_init)
 
