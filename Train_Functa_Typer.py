@@ -49,7 +49,7 @@ def train_functa(
 
     if meta_optimizer == None:
         meta_optimizer = torch.optim.Adam(lr=lr_outer, params=model.parameters())
-        scheduler = torch.optim.lr_scheduler.StepLR(meta_optimiser, 5000, lr_meta_decay)
+        scheduler = torch.optim.lr_scheduler.StepLR(meta_optimizer, 5000, lr_meta_decay)
 
     # logs intialization
     print ('===> Training started <===')
@@ -69,8 +69,6 @@ def train_functa(
         for counter, (xb,yb,imgs) in enumerate(train_dl):
             if xb.shape[0] != bs:
                 continue
-
-            scheduler.step()
 
             meta_grad = deepcopy(meta_grad_init)
 
@@ -127,6 +125,7 @@ def train_functa(
                 param.grad.data.clamp_(-10, 10) # based on CAVIA
 
             meta_optimizer.step()
+            scheduler.step()
             
             iter += 1
             if iter > num_iter:
