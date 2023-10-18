@@ -2,6 +2,8 @@
 This module contains the codes that I implemented for training.
 '''
 
+import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -166,3 +168,46 @@ def train (
         print ('Checkpoint saved successfully!')
     
     return history
+
+# ------------------------------------------------------------------------------------
+def fit_inr(model, dataset, index, verbose=False, iter=5, lr=0.01, return_modulation=False):
+    # A simple function to fit a functa model to an image
+    coordinates, pixels, img = dataset.__getitem__(index)
+    img = img.squeeze()
+    
+    if verbose:
+        fig, ax = plt.subplots(1,iter+2,figsize=(20,20*(iter+2)))
+        
+        model.eval()
+        pred = model(coordinates)
+        ax[0].imshow(pred.reshape(img.shape).cpu().detach().numpy(), cmap='gray')
+        ax[0].set_title('Hyper-network')
+        ax[0].set_xticklabels([])
+        ax[0].set_yticklabels([])
+        
+    for i in range(1,iter+1):
+        model.train()
+        pred = model(coordinates)
+        loss = F.mse_loss(pred, pixels)
+        grad = torch.autograd.grad(loss, model.modulation)[0]
+        model.modulation = model.modulation - lr * grad
+        
+        if verbose:
+            print (f'Iter {i} --- Loss: {loss} --- PSNR: {-10*torch.log10(loss)}')
+            model.eval()
+            pred = model(coordinates)
+            ax[i].imshow(pred.reshape(img.shape).cpu().detach().numpy(), cmap='gray')
+            ax[i].set_title(f'Iter {i}')
+            ax[i].set_xticklabels([])
+            ax[i].set_yticklabels([])
+            
+    if verbose:
+        ax[iter+1].imshow(img.cpu().numpy(), cmap='gray')
+        ax[iter+1].set_title('Ground Truth')
+        ax[iter+1].set_xticklabels([])
+        ax[iter+1].set_yticklabels([])
+        
+    if return_modulation:
+        return model.modulation.cpu().detach().numpy()
+        
+    return model
