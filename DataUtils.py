@@ -117,7 +117,7 @@ class INR_Dataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_path = self.img_dir + self.data.iloc[idx, 0] + '.png'
+        img_path = self.img_dir + self.data.iloc[idx, 0]
         image = read_image(img_path, mode=ImageReadMode.GRAY).to(self.device) / 255
 
         transform = Resize((self.size, self.size), antialias=True)
