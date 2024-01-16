@@ -1,7 +1,7 @@
-Data/
-Results/
+data/
+results/
 Test.ipynb
 Functa.ipynb
 .ipynb_checkpoints/
 __pycache__/
-DataAnnots/
+data-annots/
