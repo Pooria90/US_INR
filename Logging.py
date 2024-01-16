@@ -2,6 +2,7 @@
 This file containes the classes for logging during INR training.
 '''
 import os
+import string, random
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -49,6 +50,11 @@ class Logger():
         if not os.path.exists('Results/'):
             os.mkdir('Results/')
         self.path = 'Results/Logs ' + t + '/'
+        # The following a if-statement is to avoid a rare case where an HPC server (UBC ARC Sockeye in my case) starts to jobs at the same time
+        if os.path.exists(self.path):
+            random_str = ''.join(random.choices(string.ascii_lowercase,k=2))
+            self.path = 'Results/Logs ' + t + f'-{random_str}' + '/'
+        # --------------------------------------------------------------------
         os.mkdir(self.path)
         if self.args != None:
             with open(self.path + 'args.txt', 'w') as f:
