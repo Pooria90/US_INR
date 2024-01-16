@@ -23,9 +23,9 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import datasets
 from torchvision.transforms import Resize, Compose, ToTensor, Normalize
 
-from Models import ModulatedSineLayer, ModulatedSiren
-from DataUtils import get_mgrid, INR_Dataset
-from Logging import Logger, present_time
+from models import ModulatedSineLayer, ModulatedSiren
+from datautils import get_mgrid, INR_Dataset
+from logging import Logger, present_time
 
 # Training code
 def train_functa(
