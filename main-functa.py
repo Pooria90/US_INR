@@ -1,8 +1,10 @@
 '''
 A file to train the Functa network.
+It uses typer options for better compability with HPC systems.
 '''
 
 import os
+import typer
 from copy import deepcopy
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -35,22 +37,24 @@ def train_functa(
         N_inner,
         lr_outer,
         lr_inner,
+        lr_meta_decay = 0.9,
         meta_optimizer = None,
         ep_start = None,
         log_period = 1,
-        verbose = True
+        verbose = True,
+        args = None
     ):
 
     model.train()
 
     if meta_optimizer == None:
         meta_optimizer = torch.optim.Adam(lr=lr_outer, params=model.parameters())
-        # === Maybe add a scheduler === #
+        scheduler = torch.optim.lr_scheduler.StepLR(meta_optimizer, 5000, lr_meta_decay)
 
     # logs intialization
     print ('===> Training started <===')
     #print (f'Date and time: {present_time()}')
-    logger = Logger(log_period=log_period, verbose=verbose, args = 'Dummy args!')
+    logger = Logger(log_period=log_period, verbose=verbose, args=args)
 
     meta_grad_init = [0 for _ in range(len(model.state_dict()))] # starting point for meta-gradients
 
@@ -121,7 +125,8 @@ def train_functa(
                 param.grad.data.clamp_(-10, 10) # based on CAVIA
 
             meta_optimizer.step()
-
+            scheduler.step()
+            
             iter += 1
             if iter > num_iter:
                 break
@@ -168,50 +173,103 @@ def evaluate(
 
     # this will take the mean over the batches
     logger.summarise_inner_loop(iter, mode='valid')
+
+
+def main_process(
+        seed: int = 216,
+        data_path: str = './Data/Images/', #Now, datapath should directly point to the Images folder.
+        table_path: str = './Data/data_table.csv',
+        image_len: int = 128,
+        valid_split: float = 0.2,
+        in_features: int = 2,
+        hidden_features: int = 128,
+        hidden_layers: int = 10,
+        num_modulations: int = 256,
+        out_features: int = 1,
+        last_linear: bool = True,
+        first_omega_0: int = 100,
+        hidden_omega_0: int = 100,
+        num_iter: int = 10000,
+        batch_size: int = 8,
+        N_inner: int = 2,
+        lr_outer: float = 5e-5,
+        lr_inner: float = 0.01,
+        ep_start: int = 1,
+        log_period: int = 20
+):
     
-# Running the main process
-if __name__ == '__main__':
-    # === Arguments here === #
-
-    # === Seeds here === #
-    seed = 216
-
-    # === Changing directory
-    os.chdir('./Data')
+    args_str = '''
+        seed: {},
+        data_path: {},
+        table_path: {},
+        image_len: {},
+        valid_split: {},
+        in_features: {},
+        hidden_features: {},
+        hidden_layers: {},
+        num_modulations: {},
+        out_features: {},
+        last_linear: {},
+        first_omega_0: {},
+        hidden_omega_0: {},
+        num_iter: {},
+        batch_size: {},
+        N_inner: {},
+        lr_outer: {},
+        lr_inner: {},
+        ep_start: {},
+        log_period: {}
+    '''.format(
+        seed,data_path,table_path,image_len,valid_split,in_features,hidden_features,
+        hidden_layers,num_modulations,out_features,last_linear,
+        first_omega_0,hidden_omega_0,num_iter,batch_size,N_inner,
+        lr_outer,lr_inner,ep_start,log_period
+    )
+    
+    print (args_str)
+        
+    #os.chdir(data_path)
     print ('Current working directory: ' + os.getcwd() + '\n')
 
-    # === Reading the data table
-    data_table = pd.read_csv('FETAL_PLANES_DB_data.csv', sep=';')
+    # === Reading the data table; data_table.csv is the metadata file which is not created yet.
+    data_table = pd.read_csv(table_path, sep=';')
     print (data_table.tail(10))
 
-    # === Extracting the required data
-    brain_data = data_table[data_table['Plane'] == 'Fetal brain']
+    # === Extracting the required data; This part needs to be deleted. Data should be chosen outside!
+    # Also, metadata should have the name of images including their format (.png, .jpg, ...) in the first column.
+    '''brain_data = data_table[data_table['Plane'] == 'Fetal brain']
     brain_data = brain_data.reset_index(drop = True)
-    print (brain_data.tail(5))
+    print (brain_data.tail(5))'''
 
     # === Data prepration
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    ds = INR_Dataset(brain_data, './Images/', 128, device=device)
+    ds = INR_Dataset(data_table, data_path, image_len, device=device)
 
+    # === Data Split
     generator = torch.Generator().manual_seed(seed)
-    train_ds, valid_ds = random_split(ds, [0.8, 0.2], generator=generator)
+    train_ds, valid_ds = random_split(ds, [1-valid_split, valid_split], generator=generator)
     print ('\nTrain size: ',train_ds.__len__(), '--- Valid size: ', valid_ds.__len__())
 
     # === Model setup
     model = ModulatedSiren(
-        in_features=2,
-        hidden_features=[32]*2,
-        num_modulations=64,
-        out_features=1,
-        last_linear=True,
+        in_features=in_features,
+        hidden_features=[hidden_features]*hidden_layers,
+        num_modulations=num_modulations,
+        out_features=out_features,
+        last_linear=last_linear,
         device = device,
-        first_omega_0=100,
-        hidden_omega_0=100
+        first_omega_0=first_omega_0,
+        hidden_omega_0=hidden_omega_0
     ).to(device)
     
-    summary(model, (2,), device = device)
+    summary(model, (in_features,), device = device)
     
     # === Model training
-    logger, model = train_functa(model, train_ds, valid_ds, 10, 8, 2, 5e-6, 0.001, ep_start = 1, log_period=2)
+    logger, model = train_functa(model, train_ds, valid_ds, num_iter, batch_size, N_inner, lr_outer, lr_inner, ep_start = ep_start, log_period = log_period, args = args_str)
+    
+    return
 
 
+# Running the main process
+if __name__ == '__main__':
+    typer.run(main_process)
