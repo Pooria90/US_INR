@@ -2,6 +2,7 @@
 This module contains the models that I implemented.
 '''
 
+import math
 import numpy as np
 import torch
 import torch.nn as nn
@@ -219,6 +220,7 @@ class SineLayer(nn.Module):
     def forward(self, xb):
         return torch.sin(self.omega_0 * self.linear(xb))
 
+
 class Siren(nn.Module):
     def __init__(
         self, in_features, hidden_features, hidden_layers, out_features, last_linear=False,
@@ -376,7 +378,191 @@ class ModulatedSiren(nn.Module):
         else:
             xb = self.net[-1](xb, modulation = self.modulation)
         return xb
+    
+# Modulated real Gabor wavelet layer
+class ModulatedGaborR(nn.Module):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        num_modulations = None,
+        bias = True,
+        is_first = False,
+        trainable = False,
+        omega_0 = 30,
+        scale_0 = 20
+    ):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.num_modulations = num_modulations
+        self.bias = bias
+        self.is_first = is_first
+        self.trainable = trainable
+        self.omega_0 = omega_0
+        self.scale_0 = scale_0
+        
+        # Set trainable parameters if they are to be simultaneously optimized
+        self.omega_0 = nn.Parameter(self.omega_0*torch.ones(1), trainable)
+        self.scale_0 = nn.Parameter(self.scale_0*torch.ones(1), trainable)
 
-if __name__ == "__main__":
-    model = SonoNet()
-    summary(model, (1,224,288), device='cpu')
+        self.linear = nn.Linear(self.in_features, self.out_features, bias = bias)
+
+        self.num_modulations = num_modulations
+        if self.num_modulations != None:
+            assert type(num_modulations) == int, 'TypeError: num_modulations is either None or int.'
+            self.modulator = nn.Linear(self.num_modulations, self.out_features)
+
+    def forward(self, xb, modulation=None):
+        xb = self.linear(xb)
+        if modulation != None and self.num_modulations != None:
+            xb += self.modulator(modulation)
+
+        omega = self.omega_0 * xb
+        scale = self.scale_0 * xb
+        
+        return torch.cos(omega)*torch.exp(-(scale**2))
+
+# Modulated complex Gabor wavelet layer: not tested yet
+class ModulatedGaborC(nn.Module):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        num_modulations = None,
+        bias = True,
+        is_first = False,
+        trainable = False,
+        omega_0 = 30,
+        scale_0 = 20
+    ):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.num_modulations = num_modulations
+        self.bias = bias
+        self.is_first = is_first
+        self.trainable = trainable
+        self.omega_0 = omega_0
+        self.scale_0 = scale_0
+
+        if self.is_first:
+            datatype = torch.cfloat
+        else:
+            datatype = torch.float
+        
+        # Set trainable parameters if they are to be simultaneously optimized
+        self.omega_0 = nn.Parameter(self.omega_0*torch.ones(1), trainable)
+        self.scale_0 = nn.Parameter(self.scale_0*torch.ones(1), trainable)
+
+        self.linear = nn.Linear(self.in_features, self.out_features, bias = bias, dtype = datatype)
+
+        self.num_modulations = num_modulations
+        if self.num_modulations != None:
+            assert type(num_modulations) == int, 'TypeError: num_modulations is either None or int.'
+            self.modulator = nn.Linear(self.num_modulations, self.out_features, dtype = datatype)
+
+    def forward(self, xb, modulation=None):
+        xb = self.linear(xb)
+        if modulation != None and self.num_modulations != None:
+            xb += self.modulator(modulation)
+
+        omega = self.omega_0 * xb
+        scale = self.scale_0 * xb
+        
+        return torch.exp(1j*omega - scale.abs().square())
+    
+
+# Modulaed Wavelet Implicit Neural Representation (mWIRE)
+class ModulatedWIRE(nn.Module):
+    def __init__(
+        self,
+        in_features,
+        hidden_features,
+        num_modulations,
+        out_features,
+        last_linear = False,
+        omega_0 = 50,
+        scale_0 = 50,
+        wavelet_type = 'real'
+    ):
+
+        super().__init__()
+
+        self.in_features = in_features
+        self.hidden_features = hidden_features # list of hidden features
+        self.num_modulations = num_modulations # number of modulations (None or some int)
+        self.out_features = out_features
+        self.last_linear = last_linear
+        self.omega_0 = omega_0
+        self.scale_0 = scale_0
+        self.wavelet_type = wavelet_type
+
+        self.net = list()
+
+        assert self.wavelet_type == 'complex' or self.wavelet_type == 'real', 'wavelet type is either complex or real'
+        if self.wavelet_type == 'complex':
+            Wavelet = ModulatedGaborC
+            datatype = torch.cfloat
+            self.num_modulations = self.num_modulations // 2
+            self.hidden_features = list(map(self.hidden_features, lambda x : int(x / math.sqrt(2))))
+        else:
+            Wavelet = ModulatedGaborR
+            datatype = torch.float
+
+        self.net.append(
+            Wavelet(
+                self.in_features,
+                self.hidden_features[0],
+                num_modulations=self.num_modulations,
+                is_first=True,
+                omega_0=self.omega_0,
+                scale_0=self.scale_0
+            )
+        )
+
+        for i in range(len(self.hidden_features)-1):
+            self.net.append(
+                Wavelet(
+                    self.hidden_features[i],
+                    self.hidden_features[i+1],
+                    num_modulations=self.num_modulations,
+                    is_first=False,
+                    omega_0=self.omega_0,
+                    scale_0=self.scale_0
+                )
+            )
+
+        if self.last_linear:
+            final_layer = nn.Linear(hidden_features[-1], out_features, dtype=datatype)
+            '''with torch.no_grad():
+                final_layer.weight.uniform_(-np.sqrt(6 / self.hidden_features[-1]) / self.hidden_omega_0,
+                                              np.sqrt(6 / self.hidden_features[-1]) / self.hidden_omega_0)'''
+            self.net.append(final_layer)
+        else:
+            self.net.append(
+                Wavelet(
+                    self.hidden_features[-1],
+                    out_features,
+                    num_modulations=self.num_modulations,
+                    omega_0=self.omega_0,
+                    scale_0=scale_0
+                )
+            )
+
+        self.net = nn.Sequential(*self.net)
+        self.modulation = torch.zeros(size=[self.num_modulations], dtype=datatype, requires_grad=True)
+
+    def reset_modulation(self):
+        self.modulation = self.modulation.detach() * 0
+        #self.modulation = self.modulation.to(self.device)
+        self.modulation.requires_grad = True
+
+    def forward(self, xb):
+        for layer in self.net[:-1]:
+            xb = layer(xb, modulation = self.modulation)
+        if self.last_linear:
+            xb = self.net[-1](xb)
+        else:
+            xb = self.net[-1](xb, modulation = self.modulation)
+        return xb
