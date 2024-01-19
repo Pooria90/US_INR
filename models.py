@@ -399,13 +399,13 @@ class ModulatedGaborR(nn.Module):
         self.num_modulations = num_modulations
         self.bias = bias
         self.is_first = is_first
-        self.trainable = trainable
+        self.trainable = trainable # not sure if we set non-trainable, how we should optimize using Adam
         self.omega_0 = omega_0
         self.scale_0 = scale_0
         
         # Set trainable parameters if they are to be simultaneously optimized
-        self.omega_0 = nn.Parameter(self.omega_0*torch.ones(1), trainable)
-        self.scale_0 = nn.Parameter(self.scale_0*torch.ones(1), trainable)
+        #self.omega_0 = nn.Parameter(self.omega_0*torch.ones(1), trainable)
+        #self.scale_0 = nn.Parameter(self.scale_0*torch.ones(1), trainable)
 
         self.linear = nn.Linear(self.in_features, self.out_features, bias = bias).to(device)
 
