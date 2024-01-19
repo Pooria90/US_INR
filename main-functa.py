@@ -23,7 +23,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import datasets
 from torchvision.transforms import Resize, Compose, ToTensor, Normalize
 
-from models import ModulatedSineLayer, ModulatedSiren
+from models import ModulatedSineLayer, ModulatedSiren, ModulatedGaborR, ModulatedWIRE
 from datautils import get_mgrid, INR_Dataset
 from logging import Logger, present_time
 
@@ -183,14 +183,15 @@ def main_process(
         table_path: str = './Data/data_table.csv',
         image_len: int = 128,
         valid_split: float = 0.2,
+        method: str = 'siren', # 'siren', 'realgabor'
         in_features: int = 2,
         hidden_features: int = 128,
         hidden_layers: int = 10,
         num_modulations: int = 256,
         out_features: int = 1,
         last_linear: bool = True,
-        first_omega_0: int = 100,
-        hidden_omega_0: int = 100,
+        omega_0: int = 100,
+        scale_0: int = 10,
         num_iter: int = 10000,
         batch_size: int = 8,
         N_inner: int = 2,
@@ -206,14 +207,15 @@ def main_process(
         table_path: {},
         image_len: {},
         valid_split: {},
+        method: {},
         in_features: {},
         hidden_features: {},
         hidden_layers: {},
         num_modulations: {},
         out_features: {},
         last_linear: {},
-        first_omega_0: {},
-        hidden_omega_0: {},
+        omega_0: {},
+        scale_0: {},
         num_iter: {},
         batch_size: {},
         N_inner: {},
@@ -222,9 +224,9 @@ def main_process(
         ep_start: {},
         log_period: {}
     '''.format(
-        seed,data_path,table_path,image_len,valid_split,in_features,hidden_features,
+        seed,data_path,table_path,image_len,valid_split,method,in_features,hidden_features,
         hidden_layers,num_modulations,out_features,last_linear,
-        first_omega_0,hidden_omega_0,num_iter,batch_size,N_inner,
+        omega_0,scale_0,num_iter,batch_size,N_inner,
         lr_outer,lr_inner,ep_start,log_period
     )
     
@@ -253,16 +255,30 @@ def main_process(
     print ('\nTrain size: ',train_ds.__len__(), '--- Valid size: ', valid_ds.__len__())
 
     # === Model setup
-    model = ModulatedSiren(
-        in_features=in_features,
-        hidden_features=[hidden_features]*hidden_layers,
-        num_modulations=num_modulations,
-        out_features=out_features,
-        last_linear=last_linear,
-        device = device,
-        first_omega_0=first_omega_0,
-        hidden_omega_0=hidden_omega_0
-    ).to(device)
+    assert method == 'siren' or method == 'realgabor', 'Method can be siren or realgabor'
+    if method == 'siren':
+        model = ModulatedSiren(
+            in_features=in_features,
+            hidden_features=[hidden_features]*hidden_layers,
+            num_modulations=num_modulations,
+            out_features=out_features,
+            last_linear=last_linear,
+            device = device,
+            first_omega_0=omega_0,
+            hidden_omega_0=omega_0
+        ).to(device)
+    elif method == 'realgabor':
+        model = ModulatedWIRE(
+            in_features=in_features,
+            hidden_features=[hidden_features]*hidden_layers,
+            num_modulations=num_modulations,
+            out_features=out_features,
+            last_linear=last_linear,
+            omega_0 = omega_0,
+            scale_0 = 50,
+            wavelet_type = 'real'
+        ).to(device)
+
     
     summary(model, (in_features,), device = device)
     
