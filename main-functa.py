@@ -42,7 +42,8 @@ def train_functa(
         ep_start = None,
         log_period = 1,
         verbose = True,
-        args = None
+        args = None,
+        loss_func = F.mse_loss
     ):
 
     model.train()
@@ -52,7 +53,7 @@ def train_functa(
         scheduler = torch.optim.lr_scheduler.StepLR(meta_optimizer, 5000, lr_meta_decay)
 
     # logs intialization
-    print ('===> Training started <===')
+    print ('===> Training started <===\n')
     #print (f'Date and time: {present_time()}')
     logger = Logger(log_period=log_period, verbose=verbose, args=args)
 
@@ -85,7 +86,7 @@ def train_functa(
                     pred_train = model(xb[j])
 
                     # loss
-                    loss_train = F.mse_loss(pred_train, yb[j])
+                    loss_train = loss_func(pred_train, yb[j])
 
                     # grad, There are some note in the CAVIA's supplemetary matrial
                     grad_train = torch.autograd.grad(loss_train, model.modulation, create_graph=True)[0]
@@ -98,7 +99,7 @@ def train_functa(
 
                 # --- meta-gradients
                 pred_test = model(xb[j])
-                loss_test = F.mse_loss(pred_test, yb[j])
+                loss_test = loss_func(pred_test, yb[j])
                 grad_test = torch.autograd.grad(loss_test, model.parameters())
                 for i in range(len(grad_test)):
                     meta_grad[i] += grad_test[i].detach()
@@ -141,7 +142,8 @@ def evaluate(
         logger,
         dataloader,
         N_inner,
-        lr_inner
+        lr_inner,
+        loss_func = F.mse_loss
     ):
     logger.prepare_inner_loop(iter, mode='valid')
 
@@ -158,7 +160,7 @@ def evaluate(
                 pred_train = model(xb[j])
 
                 # loss
-                loss_train = F.mse_loss(pred_train, yb[j])
+                loss_train = loss_func(pred_train, yb[j])
 
                 # grad, There are some note in the CAVIA's supplemetary matrial
                 grad_train = torch.autograd.grad(loss_train, model.modulation, create_graph=True)[0]
