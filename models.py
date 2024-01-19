@@ -390,7 +390,8 @@ class ModulatedGaborR(nn.Module):
         is_first = False,
         trainable = False,
         omega_0 = 30,
-        scale_0 = 20
+        scale_0 = 20,
+        device = 'cpu'
     ):
         super().__init__()
         self.in_features = in_features
@@ -406,12 +407,12 @@ class ModulatedGaborR(nn.Module):
         self.omega_0 = nn.Parameter(self.omega_0*torch.ones(1), trainable)
         self.scale_0 = nn.Parameter(self.scale_0*torch.ones(1), trainable)
 
-        self.linear = nn.Linear(self.in_features, self.out_features, bias = bias)
+        self.linear = nn.Linear(self.in_features, self.out_features, bias = bias).to(device)
 
         self.num_modulations = num_modulations
         if self.num_modulations != None:
             assert type(num_modulations) == int, 'TypeError: num_modulations is either None or int.'
-            self.modulator = nn.Linear(self.num_modulations, self.out_features)
+            self.modulator = nn.Linear(self.num_modulations, self.out_features).to(device)
 
     def forward(self, xb, modulation=None):
         xb = self.linear(xb)
@@ -484,7 +485,8 @@ class ModulatedWIRE(nn.Module):
         last_linear = False,
         omega_0 = 50,
         scale_0 = 50,
-        wavelet_type = 'real'
+        wavelet_type = 'real',
+        device = 'cpu'
     ):
 
         super().__init__()
@@ -497,6 +499,7 @@ class ModulatedWIRE(nn.Module):
         self.omega_0 = omega_0
         self.scale_0 = scale_0
         self.wavelet_type = wavelet_type
+        self.device = device
 
         self.net = list()
 
@@ -517,7 +520,8 @@ class ModulatedWIRE(nn.Module):
                 num_modulations=self.num_modulations,
                 is_first=True,
                 omega_0=self.omega_0,
-                scale_0=self.scale_0
+                scale_0=self.scale_0,
+                device = self.device
             )
         )
 
@@ -529,12 +533,13 @@ class ModulatedWIRE(nn.Module):
                     num_modulations=self.num_modulations,
                     is_first=False,
                     omega_0=self.omega_0,
-                    scale_0=self.scale_0
+                    scale_0=self.scale_0,
+                    device = self.device
                 )
             )
 
         if self.last_linear:
-            final_layer = nn.Linear(hidden_features[-1], out_features, dtype=datatype)
+            final_layer = nn.Linear(hidden_features[-1], out_features, dtype=datatype).to(self.device)
             '''with torch.no_grad():
                 final_layer.weight.uniform_(-np.sqrt(6 / self.hidden_features[-1]) / self.hidden_omega_0,
                                               np.sqrt(6 / self.hidden_features[-1]) / self.hidden_omega_0)'''
@@ -546,16 +551,17 @@ class ModulatedWIRE(nn.Module):
                     out_features,
                     num_modulations=self.num_modulations,
                     omega_0=self.omega_0,
-                    scale_0=scale_0
+                    scale_0=scale_0,
+                    device = self.device
                 )
             )
 
         self.net = nn.Sequential(*self.net)
-        self.modulation = torch.zeros(size=[self.num_modulations], dtype=datatype, requires_grad=True)
+        self.modulation = torch.zeros(size=[self.num_modulations], dtype=datatype, requires_grad=True).to(self.device)
 
     def reset_modulation(self):
         self.modulation = self.modulation.detach() * 0
-        #self.modulation = self.modulation.to(self.device)
+        self.modulation = self.modulation.to(self.device)
         self.modulation.requires_grad = True
 
     def forward(self, xb):
