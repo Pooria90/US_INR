@@ -25,7 +25,7 @@ from torchvision.transforms import Resize, Compose, ToTensor, Normalize
 
 from models import ModulatedSineLayer, ModulatedSiren, ModulatedGaborR, ModulatedWIRE
 from datautils import get_mgrid, INR_Dataset
-from logging import Logger, present_time
+from logs import Logger, present_time
 
 # Training code
 def train_functa(
@@ -275,8 +275,9 @@ def main_process(
             out_features=out_features,
             last_linear=last_linear,
             omega_0 = omega_0,
-            scale_0 = 50,
-            wavelet_type = 'real'
+            scale_0 = scale_0,
+            wavelet_type = 'real',
+            device = device
         ).to(device)
 
     
