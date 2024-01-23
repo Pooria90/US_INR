@@ -2,6 +2,7 @@
 This file containes the classes for logging during INR training.
 '''
 import os
+import pickle
 import string, random
 import numpy as np
 import torch
@@ -47,13 +48,13 @@ class Logger():
         }
 
         t = present_time()
-        if not os.path.exists('Results/'):
-            os.mkdir('Results/')
-        self.path = 'Results/Logs ' + t + '/'
+        if not os.path.exists('results/'):
+            os.mkdir('results/')
+        self.path = 'results/Logs ' + t + '/'
         # The following a if-statement is to avoid a rare case where an HPC server (UBC ARC Sockeye in my case) starts to jobs at the same time
         if os.path.exists(self.path):
             random_str = ''.join(random.choices(string.ascii_lowercase,k=2))
-            self.path = 'Results/Logs ' + t + f'-{random_str}' + '/'
+            self.path = 'results/Logs ' + t + f'-{random_str}' + '/'
         # --------------------------------------------------------------------
         os.mkdir(self.path)
         if self.args != None:
@@ -172,3 +173,10 @@ class Logger():
 
     def save_checkpoint(self, path):
         pass
+
+    def save_stats(self):
+        with open(self.path + 'train_stats.pkl', 'wb') as f:
+            pickle.dump(self.train_stats, f)
+        with open(self.path + 'valid_stats.pkl', 'wb') as f:
+            pickle.dump(self.valid_stats, f)
+

@@ -130,6 +130,7 @@ def train_functa(
             
             iter += 1
             if iter > num_iter:
+                logger.save_stats()
                 break
 
     model.reset_modulation()
