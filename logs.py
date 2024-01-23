@@ -179,4 +179,24 @@ class Logger():
             pickle.dump(self.train_stats, f)
         with open(self.path + 'valid_stats.pkl', 'wb') as f:
             pickle.dump(self.valid_stats, f)
+        return
+    
+    def load_from_path(self, path, device):
+        self.best_model_train = torch.load(path + 'best_model_train').to(device)
+        self.best_model_valid = torch.load(path + 'best_valid_train').to(device)
 
+        self.best_model_train_stats = np.load(path + 'best_model_train_stats.npy', allow_pickle=True).item()
+        self.best_model_valid_stats = np.load(path + 'best_model_valid_stats.npy', allow_pickle=True).item()
+        
+        self.best_train_loss = self.best_model_train_stats['tr_loss']
+        self.best_valid_loss = self.best_model_valid_stats['va_loss']
+
+        self.best_optim_train = torch.load(path + 'best_optim_train')
+        self.best_optim_valid = torch.load(path + 'best_optim_valid')
+
+        with open(path + 'train_stats.pkl', 'rb') as f:
+            self.train_stats = pickle.load(f)
+        with open(path + 'valid_stats.pkl', 'rb') as f:
+            self.valid_stats = pickle.load(f)
+
+        return

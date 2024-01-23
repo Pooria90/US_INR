@@ -38,32 +38,36 @@ def train_functa(
         lr_outer,
         lr_inner,
         lr_meta_decay = 0.9,
-        meta_optimizer = None,
         ep_start = None,
         log_period = 1,
         verbose = True,
         args = None,
-        loss_func = F.mse_loss
+        loss_func = F.mse_loss,
+        pretrained_path = None,
+        device = 'cuda'
     ):
 
-    model.train()
-
-    if meta_optimizer == None:
-        meta_optimizer = torch.optim.Adam(lr=lr_outer, params=model.parameters())
-        scheduler = torch.optim.lr_scheduler.StepLR(meta_optimizer, 5000, lr_meta_decay)
-
-    # logs intialization
-    print ('===> Training started <===\n')
-    #print (f'Date and time: {present_time()}')
+    print ('=== Training started ===\n')
     logger = Logger(log_period=log_period, verbose=verbose, args=args)
+
+    if pretrained_path != None:
+        logger.load_from_path(path = pretrained_path, device = device)
+        model = deepcopy(logger.best_model_valid)
+        #meta_optimizer = deepcopy(logger.best_optim_valid)
+        #scheduler = torch.optim.lr_scheduler.StepLR(meta_optimizer, 5000, lr_meta_decay)
+    #else:
+    meta_optimizer = torch.optim.Adam(lr=lr_outer, params=model.parameters())
+    scheduler = torch.optim.lr_scheduler.StepLR(meta_optimizer, 5000, lr_meta_decay)
+
+    if ep_start == None:
+        ep_start = 1
+
+    model.train()
 
     meta_grad_init = [0 for _ in range(len(model.state_dict()))] # starting point for meta-gradients
 
     train_dl = DataLoader(train_ds, batch_size=bs, shuffle=True) # === Check CAVIA for pin_memory
     valid_dl = DataLoader(valid_ds, batch_size=bs, shuffle=True) # === Check CAVIA for pin_memory
-
-    if ep_start == None:
-        ep_start = 1
 
     iter = ep_start
     while iter <= num_iter:
@@ -94,9 +98,6 @@ def train_functa(
                     # update modulations
                     model.modulation = model.modulation - lr_inner * grad_train
 
-                    #print(f'iter: {iter} --- batch: {counter+1} --- sample: {j+1} --- inner: {i+1}')
-                    #print(f'loss train = {loss_train}')
-
                 # --- meta-gradients
                 pred_test = model(xb[j])
                 loss_test = loss_func(pred_test, yb[j])
@@ -115,7 +116,7 @@ def train_functa(
                 evaluate(iter, model, logger, valid_dl, N_inner, lr_inner)
                 logger.update_best_model(iter, logger, model, meta_optimizer)
             logger.print_logs(iter, grad_train, meta_grad)
-            # === save checkpoints and stats ===
+            # === save checkpoints ===
 
             # --- Meta-update
             meta_optimizer.zero_grad()
@@ -199,7 +200,8 @@ def main_process(
         lr_outer: float = 5e-5,
         lr_inner: float = 0.01,
         ep_start: int = 1,
-        log_period: int = 20
+        log_period: int = 20,
+        pretrained_path: str = None
 ):
     
     args_str = '''
@@ -223,12 +225,13 @@ def main_process(
         lr_outer: {},
         lr_inner: {},
         ep_start: {},
-        log_period: {}
+        log_period: {},
+        pretrained_path: {}
     '''.format(
         seed,data_path,table_path,image_len,valid_split,method,in_features,hidden_features,
         hidden_layers,num_modulations,out_features,last_linear,
         omega_0,scale_0,num_iter,batch_size,N_inner,
-        lr_outer,lr_inner,ep_start,log_period
+        lr_outer,lr_inner,ep_start,log_period,pretrained_path
     )
     
     print (args_str)
@@ -239,12 +242,6 @@ def main_process(
     # === Reading the data table; data_table.csv is the metadata file which is not created yet.
     data_table = pd.read_csv(table_path, sep=';')
     print (data_table.tail(10))
-
-    # === Extracting the required data; This part needs to be deleted. Data should be chosen outside!
-    # Also, metadata should have the name of images including their format (.png, .jpg, ...) in the first column.
-    '''brain_data = data_table[data_table['Plane'] == 'Fetal brain']
-    brain_data = brain_data.reset_index(drop = True)
-    print (brain_data.tail(5))'''
 
     # === Data prepration
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -285,7 +282,7 @@ def main_process(
     summary(model, (in_features,), device = device)
     
     # === Model training
-    logger, model = train_functa(model, train_ds, valid_ds, num_iter, batch_size, N_inner, lr_outer, lr_inner, ep_start = ep_start, log_period = log_period, args = args_str)
+    logger, model = train_functa(model, train_ds, valid_ds, num_iter, batch_size, N_inner, lr_outer, lr_inner, ep_start = ep_start, log_period = log_period, args = args_str, device = device)
     
     return
 
